@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- SMS -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+
+    <!-- Appel téléphonique -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+
+    <!-- Foreground service (requis pour appeler depuis l'arrière-plan) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
+    <!-- Notifications (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Exemption de l'optimisation batterie -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.TransaviaShotgun">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!--
+            android:permission garantit que seul le système téléphonie peut invoquer ce receiver.
+            Aucune app tierce ne peut simuler un SMS_RECEIVED vers ce receiver.
+            exported="false" + permission = double protection.
+        -->
+        <receiver
+            android:name=".receiver.SmsReceiver"
+            android:exported="false"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Service de traitement : parsing + matching (court, < 10s) -->
+        <service
+            android:name=".service.SmsProcessingService"
+            android:exported="false" />
+
+        <!-- Service de premier plan qui passe l'appel (requis Android 10+) -->
+        <service
+            android:name=".service.CallForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall" />
+
+    </application>
+
+</manifest>

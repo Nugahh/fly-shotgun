@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Transavia Shotgun</string>
+    <string name="subtitle">Bot de surveillance SMS pilote</string>
+    <string name="bot_enabled">Bot activé</string>
+    <string name="hint_sender">Numéro / nom expéditeur (ex: TRANSAVIA)</string>
+    <string name="hint_call_number">Numéro à appeler si match</string>
+    <string name="hint_keyword">Mot-clé de début de SMS (optionnel)</string>
+    <string name="hint_keyword_helper">Laissez vide pour accepter tous les SMS de l\'expéditeur</string>
+    <string name="hint_dates">Dates disponibles (dd/mm, une par ligne)</string>
+    <string name="hint_dates_helper">Ex: 15/06\n20/06\n01/07</string>
+    <string name="btn_save">Enregistrer</string>
+</resources>
