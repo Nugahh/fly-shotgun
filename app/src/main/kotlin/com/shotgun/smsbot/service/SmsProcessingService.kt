@@ -54,7 +54,7 @@ class SmsProcessingService : Service() {
         NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Shotgun : analyse en cours")
             .setContentText("Analyse du message par l'IA…")
-            .setSmallIcon(R.drawable.ic_phone)
+            .setSmallIcon(R.drawable.ic_notification)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()
@@ -79,6 +79,12 @@ class SmsProcessingService : Service() {
         }
         Log.d(TAG, "✓ Bot activé")
 
+        if (!AppConfig.isWithinActiveHours()) {
+            Log.w(TAG, "✗ Hors créneau (${AppConfig.activeFrom}–${AppConfig.activeTo}) — SMS ignoré")
+            return
+        }
+        Log.d(TAG, "✓ Dans le créneau horaire")
+
         if (!phoneNumbersMatch(sender, AppConfig.senderNumber)) {
             Log.w(TAG, "✗ Expéditeur ne correspond pas : reçu='$sender' | configuré='${AppConfig.senderNumber}'")
             return
@@ -86,10 +92,10 @@ class SmsProcessingService : Service() {
         Log.d(TAG, "✓ Expéditeur OK : '$sender'")
 
         if (!SmsLlmInterpreter.isAvailable(this)) {
-            Log.w(TAG, "✗ Modèle LLM absent — télécharge-le depuis l'app")
+            Log.w(TAG, "✗ Clé API Gemini manquante — configure-la dans l'app")
             return
         }
-        Log.d(TAG, "✓ Modèle LLM disponible — lancement inférence…")
+        Log.d(TAG, "✓ Clé Gemini configurée — lancement inférence…")
 
         val smsDate = SmsLlmInterpreter.extractDate(this, body)
         Log.i(TAG, "LLM résultat brut : '$smsDate'")
