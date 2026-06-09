@@ -25,6 +25,12 @@ android {
         }
     }
 
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     buildFeatures {
         viewBinding = true
     }
@@ -36,6 +42,13 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+    }
+
+    applicationVariants.all {
+        outputs.all {
+            (this as com.android.build.gradle.internal.api.BaseVariantOutputImpl).outputFileName =
+                "fly-shotgun-${defaultConfig.versionName}.apk"
+        }
     }
 
     sourceSets {
@@ -52,6 +65,7 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("com.google.mediapipe:tasks-genai:0.10.14")
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0") // TODO: bump if still 404
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

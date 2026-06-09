@@ -3,13 +3,17 @@ package com.shotgun.smsbot.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.os.IBinder
+import android.telecom.TelecomManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.shotgun.smsbot.R
+import com.shotgun.smsbot.config.AppConfig
 
 class CallForegroundService : Service() {
 
@@ -36,22 +40,38 @@ class CallForegroundService : Service() {
         Log.i(TAG, "Passage d'appel vers $callNumber (date correspondante: $matchedDate)")
         placeCall(callNumber)
 
+        stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf(startId)
         return START_NOT_STICKY
     }
 
     private fun placeCall(number: String) {
         try {
-            val callIntent = Intent(Intent.ACTION_CALL).apply {
-                data  = Uri.parse("tel:${Uri.encode(number)}")
-                // FLAG_ACTIVITY_NEW_TASK obligatoire depuis un contexte Service
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val telecom = getSystemService(TelecomManager::class.java)
+            val uri = Uri.fromParts("tel", number, null)
+            AppConfig.load(this)
+            val extras = Bundle().apply {
+                putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, AppConfig.speakerphoneEnabled)
             }
-            startActivity(callIntent)
+            telecom.placeCall(uri, extras)
+            Log.i(TAG, "✓ Appel placé via TelecomManager")
         } catch (e: SecurityException) {
-            Log.e(TAG, "Permission CALL_PHONE refusée", e)
+            Log.e(TAG, "✗ Permission refusée — fallback ACTION_CALL", e)
+            fallbackActionCall(number)
         } catch (e: Exception) {
-            Log.e(TAG, "Échec de l'appel", e)
+            Log.e(TAG, "✗ TelecomManager.placeCall() échoué — fallback ACTION_CALL", e)
+            fallbackActionCall(number)
+        }
+    }
+
+    private fun fallbackActionCall(number: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_CALL).apply {
+                data = Uri.parse("tel:${Uri.encode(number)}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        } catch (e: Exception) {
+            Log.e(TAG, "✗ Fallback ACTION_CALL aussi échoué", e)
         }
     }
 

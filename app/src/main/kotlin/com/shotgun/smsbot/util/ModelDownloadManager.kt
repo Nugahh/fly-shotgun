@@ -59,7 +59,7 @@ object ModelDownloadManager {
 
         val conn = URL(MODEL_DOWNLOAD_URL).openConnection() as HttpURLConnection
         conn.connectTimeout = 15_000
-        conn.readTimeout    = 60_000
+        conn.readTimeout    = 0        // pas de timeout sur la lecture — fichier ~1.1 Go
         conn.setRequestProperty("User-Agent", "TransaviaShotgun/1.0")
 
         try {
@@ -80,7 +80,10 @@ object ModelDownloadManager {
             }
 
             // Atomic rename once download is complete
-            tmpFile.renameTo(file)
+            if (!tmpFile.renameTo(file)) {
+                tmpFile.copyTo(file, overwrite = true)
+                tmpFile.delete()
+            }
             Log.i(TAG, "Modèle téléchargé : ${file.absolutePath} (${file.length()} octets)")
         } catch (e: Exception) {
             tmpFile.delete()

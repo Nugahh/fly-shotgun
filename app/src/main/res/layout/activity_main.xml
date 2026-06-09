@@ -33,6 +33,14 @@
             android:layout_height="wrap_content"
             android:text="@string/bot_enabled"
             android:checked="true"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/switchSpeakerphone"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Haut-parleur automatique"
+            android:checked="false"
             android:layout_marginBottom="20dp" />
 
         <!-- Numéro expéditeur -->
@@ -114,6 +122,24 @@
             android:text="@string/btn_save"
             android:padding="14dp" />
 
+        <!-- Clé API Gemini -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Clé API Gemini (optionnelle)"
+            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="4dp"
+            app:helperText="Obtenez une clé gratuite sur aistudio.google.com">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etGeminiKey"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPassword"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
         <!-- Section Modèle IA -->
         <TextView
             android:layout_width="wrap_content"
@@ -161,6 +187,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/btn_download_model"
+            android:layout_marginBottom="8dp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnTestLlm"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Tester le LLM"
             android:layout_marginBottom="8dp" />
 
     </LinearLayout>

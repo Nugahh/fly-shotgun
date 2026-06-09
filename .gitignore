@@ -1,0 +1,17 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# Android Studio
+.idea/
+*.iml
+local.properties
+
+# Keystore
+*.jks
+*.keystore
+
+# Modèle IA (1.1 Go)
+*.bin
+.history

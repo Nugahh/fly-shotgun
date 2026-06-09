@@ -22,4 +22,7 @@
     <string name="model_dialog_message">Pour interpréter les SMS dans des formats inhabituels, l\'application a besoin de télécharger un modèle d\'IA (~1,1 Go).\n\nLe téléchargement est recommandé en Wi-Fi.</string>
     <string name="model_dialog_confirm">Télécharger maintenant</string>
     <string name="model_dialog_later">Plus tard</string>
+    <string name="notif_access_title">Accès aux notifications requis</string>
+    <string name="notif_access_message">Pour intercepter les messages RCS de Transavia, l\'app a besoin d\'accéder aux notifications.\n\nActivez \"Fly Shotgun\" dans la liste qui s\'ouvre.</string>
+    <string name="notif_access_confirm">Ouvrir les paramètres</string>
 </resources>

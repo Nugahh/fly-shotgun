@@ -14,22 +14,33 @@ class SmsReceiver : BroadcastReceiver() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) return
+        Log.d(TAG, "onReceive action=${intent.action}")
+        if (intent.action != Telephony.Sms.Intents.SMS_RECEIVED_ACTION) {
+            Log.w(TAG, "Action ignorée : ${intent.action}")
+            return
+        }
 
         val messages = Telephony.Sms.Intents.getMessagesFromIntent(intent)
-        if (messages.isNullOrEmpty()) return
+        if (messages.isNullOrEmpty()) {
+            Log.w(TAG, "Aucun message extrait de l'intent")
+            return
+        }
 
-        // Les SMS longs arrivent découpés en plusieurs SmsMessage — on reconstitue le body complet.
-        val sender = messages[0].originatingAddress ?: return
-        val body   = messages.joinToString("") { it.messageBody }
+        val sender = messages[0].originatingAddress ?: run {
+            Log.w(TAG, "Expéditeur null, SMS ignoré")
+            return
+        }
+        val body = messages.joinToString("") { it.messageBody }
 
-        Log.d(TAG, "SMS reçu de $sender (${body.length} chars)")
+        Log.i(TAG, "━━━ SMS REÇU ━━━")
+        Log.i(TAG, "  Expéditeur : $sender")
+        Log.i(TAG, "  Body (${body.length} chars) : ${body.take(200)}")
 
-        // On délègue immédiatement — le BroadcastReceiver doit se terminer en < 10s.
         val serviceIntent = Intent(context, SmsProcessingService::class.java).apply {
             putExtra("sender", sender)
             putExtra("body", body)
         }
         context.startService(serviceIntent)
+        Log.d(TAG, "SmsProcessingService démarré")
     }
 }

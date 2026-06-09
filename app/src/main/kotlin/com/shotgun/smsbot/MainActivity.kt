@@ -11,6 +11,7 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.chip.Chip
 import com.google.android.material.datepicker.MaterialDatePicker
@@ -58,14 +59,19 @@ class MainActivity : AppCompatActivity() {
         populateFields()
         setupSaveButton()
         setupModelSection()
+        setupTestLlmButton()
         permissionLauncher.launch(requiredPermissions)
         checkBatteryOptimization()
+        checkNotificationAccess()
+        checkFullScreenIntentPermission()
     }
 
     private fun populateFields() {
         binding.etSenderNumber.setText(AppConfig.senderNumber)
         binding.etCallNumber.setText(AppConfig.callNumber)
         binding.etKeyword.setText(AppConfig.keyword)
+        binding.etGeminiKey.setText(AppConfig.geminiApiKey)
+        binding.switchSpeakerphone.isChecked = AppConfig.speakerphoneEnabled
         binding.switchEnabled.isChecked = AppConfig.isEnabled
         selectedDates.clear()
         selectedDates.addAll(AppConfig.availableDates)
@@ -75,12 +81,14 @@ class MainActivity : AppCompatActivity() {
     private fun setupSaveButton() {
         binding.btnSave.setOnClickListener {
             AppConfig.save(
-                context = this,
-                sender  = binding.etSenderNumber.text.toString(),
-                callTo  = binding.etCallNumber.text.toString(),
-                kw      = binding.etKeyword.text.toString(),
-                dates   = selectedDates.toList(),
-                enabled = binding.switchEnabled.isChecked
+                context    = this,
+                sender     = binding.etSenderNumber.text.toString(),
+                callTo     = binding.etCallNumber.text.toString(),
+                kw         = binding.etKeyword.text.toString(),
+                dates      = selectedDates.toList(),
+                enabled    = binding.switchEnabled.isChecked,
+                geminiKey    = binding.etGeminiKey.text.toString(),
+                speakerphone = binding.switchSpeakerphone.isChecked
             )
             Toast.makeText(
                 this,
@@ -187,6 +195,60 @@ class MainActivity : AppCompatActivity() {
                 binding.btnDownloadModel.isEnabled = true
                 refreshModelStatus()
                 Toast.makeText(this@MainActivity, R.string.model_download_error, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun setupTestLlmButton() {
+        binding.btnTestLlm.setOnClickListener {
+            val testSms = "Bonsoir, nous recherchons des OPL pour demain le 10/06 sur ORY OZZ ORY. Si disponible merci de nous contacter. Regul PN"
+            lifecycleScope.launch {
+                binding.btnTestLlm.isEnabled = false
+                binding.btnTestLlm.text = "LLM en cours…"
+                val result = com.shotgun.smsbot.util.SmsLlmInterpreter.extractDate(this@MainActivity, testSms)
+                runOnUiThread {
+                    binding.btnTestLlm.isEnabled = true
+                    binding.btnTestLlm.text = "Tester le LLM"
+                    AlertDialog.Builder(this@MainActivity)
+                        .setTitle("Résultat LLM")
+                        .setMessage("SMS test :\n\"$testSms\"\n\nRésultat : ${result ?: "NONE (pas de dispo détectée)"}")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
+            }
+        }
+    }
+
+    private fun checkNotificationAccess() {
+        val granted = NotificationManagerCompat
+            .getEnabledListenerPackages(this)
+            .contains(packageName)
+        if (!granted) {
+            AlertDialog.Builder(this)
+                .setTitle(R.string.notif_access_title)
+                .setMessage(R.string.notif_access_message)
+                .setPositiveButton(R.string.notif_access_confirm) { _, _ ->
+                    startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                }
+                .setNegativeButton(R.string.model_dialog_later, null)
+                .show()
+        }
+    }
+
+    private fun checkFullScreenIntentPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val nm = getSystemService(android.app.NotificationManager::class.java)
+            if (!nm.canUseFullScreenIntent()) {
+                AlertDialog.Builder(this)
+                    .setTitle("Permission requise")
+                    .setMessage("Pour déclencher un appel quand l'écran est verrouillé, autorisez les notifications plein écran.")
+                    .setPositiveButton("Autoriser") { _, _ ->
+                        startActivity(Intent("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENTS").apply {
+                            data = android.net.Uri.parse("package:$packageName")
+                        })
+                    }
+                    .setNegativeButton("Plus tard", null)
+                    .show()
             }
         }
     }

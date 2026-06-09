@@ -1,9 +1,14 @@
 package com.shotgun.smsbot.service
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.shotgun.smsbot.R
 import com.shotgun.smsbot.config.AppConfig
 import com.shotgun.smsbot.util.SmsLlmInterpreter
 import kotlinx.coroutines.CoroutineScope
@@ -16,6 +21,8 @@ class SmsProcessingService : Service() {
 
     companion object {
         private const val TAG = "SmsProcessingService"
+        private const val CHANNEL_ID = "shotgun_processing_channel"
+        private const val NOTIFICATION_ID = 1002
     }
 
     private val job   = SupervisorJob()
@@ -23,49 +30,83 @@ class SmsProcessingService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val sender = intent?.getStringExtra("sender") ?: run { stopSelf(startId); return START_NOT_STICKY }
         val body   = intent.getStringExtra("body")    ?: run { stopSelf(startId); return START_NOT_STICKY }
 
+        startForeground(NOTIFICATION_ID, buildNotification())
+
         scope.launch {
             processSms(sender, body)
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf(startId)
         }
 
         return START_NOT_STICKY
     }
 
+    private fun buildNotification(): Notification =
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Shotgun : analyse en cours")
+            .setContentText("Analyse du message par l'IA…")
+            .setSmallIcon(R.drawable.ic_phone)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            .build()
+
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            "Analyse SMS Shotgun",
+            NotificationManager.IMPORTANCE_LOW
+        )
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
     private suspend fun processSms(sender: String, body: String) {
+        Log.i(TAG, "━━━ TRAITEMENT SMS ━━━")
         AppConfig.load(this)
+        Log.d(TAG, "Config : enabled=${AppConfig.isEnabled} | sender='${AppConfig.senderNumber}' | dates=${AppConfig.availableDates}")
 
         if (!AppConfig.isEnabled) {
-            Log.d(TAG, "Bot désactivé, SMS ignoré")
+            Log.w(TAG, "✗ Bot désactivé — SMS ignoré")
             return
         }
+        Log.d(TAG, "✓ Bot activé")
 
         if (!phoneNumbersMatch(sender, AppConfig.senderNumber)) {
-            Log.d(TAG, "Expéditeur '$sender' ne correspond pas à '${AppConfig.senderNumber}'")
+            Log.w(TAG, "✗ Expéditeur ne correspond pas : reçu='$sender' | configuré='${AppConfig.senderNumber}'")
             return
         }
+        Log.d(TAG, "✓ Expéditeur OK : '$sender'")
 
         if (!SmsLlmInterpreter.isAvailable(this)) {
-            Log.w(TAG, "Modèle LLM absent — SMS ignoré. Télécharge le modèle dans l'app.")
+            Log.w(TAG, "✗ Modèle LLM absent — télécharge-le depuis l'app")
             return
         }
+        Log.d(TAG, "✓ Modèle LLM disponible — lancement inférence…")
 
         val smsDate = SmsLlmInterpreter.extractDate(this, body)
+        Log.i(TAG, "LLM résultat brut : '$smsDate'")
 
         if (smsDate == null) {
-            Log.d(TAG, "LLM : pas de disponibilité détectée")
+            Log.w(TAG, "✗ LLM : aucune disponibilité détectée dans ce SMS")
             return
         }
+        Log.d(TAG, "✓ Date extraite : $smsDate")
 
         if (smsDate !in AppConfig.availableDates) {
-            Log.d(TAG, "Date $smsDate pas dans la liste ${AppConfig.availableDates}")
+            Log.w(TAG, "✗ Date '$smsDate' absente de la liste : ${AppConfig.availableDates}")
             return
         }
+        Log.d(TAG, "✓ Date '$smsDate' présente dans la liste")
 
-        Log.i(TAG, "MATCH ! Date=$smsDate → appel vers ${AppConfig.callNumber}")
+        Log.i(TAG, "MATCH — Date=$smsDate → appel vers ${AppConfig.callNumber}")
 
         val callIntent = Intent(this, CallForegroundService::class.java).apply {
             putExtra("call_number", AppConfig.callNumber)

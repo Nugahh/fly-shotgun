@@ -7,16 +7,23 @@
 
     <!-- Appel téléphonique -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
 
     <!-- Foreground service (requis pour appeler depuis l'arrière-plan) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <!-- FOREGROUND_SERVICE_PHONE_CALL retiré : nécessite d'être dialer par défaut (impossible en sideload) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- Notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- Exemption de l'optimisation batterie -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- Allumer l'écran pour passer l'appel -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.TURN_SCREEN_ON" />
 
     <!-- Téléchargement du modèle IA -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -29,6 +36,15 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.TransaviaShotgun">
+
+        <activity
+            android:name=".service.CallActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:excludeFromRecents="true"
+            android:taskAffinity="" />
 
         <activity
             android:name=".MainActivity"
@@ -47,7 +63,7 @@
         -->
         <receiver
             android:name=".receiver.SmsReceiver"
-            android:exported="false"
+            android:exported="true"
             android:permission="android.permission.BROADCAST_SMS">
             <intent-filter android:priority="999">
                 <action android:name="android.provider.Telephony.SMS_RECEIVED" />
@@ -57,13 +73,24 @@
         <!-- Service de traitement : parsing + matching (court, < 10s) -->
         <service
             android:name=".service.SmsProcessingService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Écoute les notifications RCS de Google Messages -->
+        <service
+            android:name=".service.RcsNotificationListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
 
         <!-- Service de premier plan qui passe l'appel (requis Android 10+) -->
         <service
             android:name=".service.CallForegroundService"
             android:exported="false"
-            android:foregroundServiceType="phoneCall" />
+            android:foregroundServiceType="dataSync" />
 
     </application>
 
