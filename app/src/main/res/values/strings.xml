@@ -7,7 +7,19 @@
     <string name="hint_call_number">Numéro à appeler si match</string>
     <string name="hint_keyword">Mot-clé de début de SMS (optionnel)</string>
     <string name="hint_keyword_helper">Laissez vide pour accepter tous les SMS de l\'expéditeur</string>
-    <string name="hint_dates">Dates disponibles (dd/mm, une par ligne)</string>
-    <string name="hint_dates_helper">Ex: 15/06\n20/06\n01/07</string>
+    <string name="hint_dates">Dates disponibles</string>
+    <string name="btn_add_date">+ Ajouter une date</string>
     <string name="btn_save">Enregistrer</string>
+    <string name="model_section_title">Modèle IA (interprétation avancée)</string>
+    <string name="model_section_desc">Utilisé en fallback quand la regex ne détecte pas de date (formats écrits, tirets…)</string>
+    <string name="model_status_ready">Statut : actif</string>
+    <string name="model_status_absent">Statut : non téléchargé</string>
+    <string name="model_status_downloading">Téléchargement en cours…</string>
+    <string name="btn_download_model">Télécharger le modèle (~1,1 Go)</string>
+    <string name="model_download_wifi_warning">Connexion Wi-Fi requise pour télécharger le modèle.</string>
+    <string name="model_download_error">Échec du téléchargement. Vérifiez votre connexion.</string>
+    <string name="model_dialog_title">Modèle IA requis</string>
+    <string name="model_dialog_message">Pour interpréter les SMS dans des formats inhabituels, l\'application a besoin de télécharger un modèle d\'IA (~1,1 Go).\n\nLe téléchargement est recommandé en Wi-Fi.</string>
+    <string name="model_dialog_confirm">Télécharger maintenant</string>
+    <string name="model_dialog_later">Plus tard</string>
 </resources>

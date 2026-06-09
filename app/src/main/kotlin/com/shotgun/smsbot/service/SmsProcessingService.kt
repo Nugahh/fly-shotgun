@@ -5,7 +5,7 @@ import android.content.Intent
 import android.os.IBinder
 import android.util.Log
 import com.shotgun.smsbot.config.AppConfig
-import com.shotgun.smsbot.util.SmsParser
+import com.shotgun.smsbot.util.SmsLlmInterpreter
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,14 +28,14 @@ class SmsProcessingService : Service() {
         val body   = intent.getStringExtra("body")    ?: run { stopSelf(startId); return START_NOT_STICKY }
 
         scope.launch {
-            process(sender, body)
+            processSms(sender, body)
             stopSelf(startId)
         }
 
         return START_NOT_STICKY
     }
 
-    private fun process(sender: String, body: String) {
+    private suspend fun processSms(sender: String, body: String) {
         AppConfig.load(this)
 
         if (!AppConfig.isEnabled) {
@@ -48,12 +48,17 @@ class SmsProcessingService : Service() {
             return
         }
 
-        if (!SmsParser.matchesFilter(body, AppConfig.keyword)) {
-            Log.d(TAG, "Le corps du SMS ne passe pas le filtre")
+        if (!SmsLlmInterpreter.isAvailable(this)) {
+            Log.w(TAG, "Modèle LLM absent — SMS ignoré. Télécharge le modèle dans l'app.")
             return
         }
 
-        val smsDate = SmsParser.extractDate(body) ?: return
+        val smsDate = SmsLlmInterpreter.extractDate(this, body)
+
+        if (smsDate == null) {
+            Log.d(TAG, "LLM : pas de disponibilité détectée")
+            return
+        }
 
         if (smsDate !in AppConfig.availableDates) {
             Log.d(TAG, "Date $smsDate pas dans la liste ${AppConfig.availableDates}")
@@ -69,11 +74,6 @@ class SmsProcessingService : Service() {
         startForegroundService(callIntent)
     }
 
-    /**
-     * Comparaison souple des numéros :
-     *  1. Exacte insensible à la casse (codes courts alphanumériques : "TRANSAVIA")
-     *  2. 9 derniers chiffres normalisés (+336XXXXXXXX vs 06XXXXXXXX)
-     */
     private fun phoneNumbersMatch(received: String, configured: String): Boolean {
         if (configured.isBlank()) return false
         if (received.trim().equals(configured.trim(), ignoreCase = true)) return true

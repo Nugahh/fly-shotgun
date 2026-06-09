@@ -17,6 +17,9 @@ import com.shotgun.smsbot.util.DateNormalizer
  */
 object AppConfig {
 
+    const val DEFAULT_CALL_NUMBER  = "+33185163211"
+    const val DEFAULT_SENDER       = "0617186069"
+
     private const val PREFS_NAME   = "shotgun_config"
     private const val KEY_SENDER   = "sender_number"
     private const val KEY_CALL     = "call_number"
@@ -40,8 +43,8 @@ object AppConfig {
 
     fun load(context: Context) {
         val p = prefs(context)
-        senderNumber   = p.getString(KEY_SENDER, "")  ?: ""
-        callNumber     = p.getString(KEY_CALL, "")    ?: ""
+        senderNumber   = p.getString(KEY_SENDER, DEFAULT_SENDER) ?: DEFAULT_SENDER
+        callNumber     = p.getString(KEY_CALL, DEFAULT_CALL_NUMBER) ?: DEFAULT_CALL_NUMBER
         keyword        = p.getString(KEY_KEYWORD, "") ?: ""
         availableDates = parseDates(p.getString(KEY_DATES, "[]") ?: "[]")
         isEnabled      = p.getBoolean(KEY_ENABLED, true)
