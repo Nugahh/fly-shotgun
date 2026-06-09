@@ -8,11 +8,13 @@ import android.app.Service
 import android.content.Intent
 import android.media.AudioAttributes
 import android.media.AudioManager
-import android.media.Ringtone
+import android.media.MediaPlayer
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.telecom.TelecomManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -28,7 +30,7 @@ class CallForegroundService : Service() {
         const val ACTION_STOP_ALARM       = "com.shotgun.smsbot.STOP_ALARM"
     }
 
-    private var currentRingtone: Ringtone? = null
+    private var mediaPlayer: MediaPlayer? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -39,8 +41,7 @@ class CallForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP_ALARM) {
-            currentRingtone?.stop()
-            currentRingtone = null
+            stopAlarm()
             Log.i(TAG, "Alarme arrêtée manuellement")
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf(startId)
@@ -56,7 +57,8 @@ class CallForegroundService : Service() {
         val alarmOnly = intent.getBooleanExtra("alarm_only", false)
         Log.i(TAG, if (alarmOnly) "Test alarme" else "Passage d'appel vers $callNumber (date: $matchedDate)")
         AppConfig.load(this)
-        val alarmPlayed = if (AppConfig.alarmEnabled) playAlarm() else false
+        // Pour le test manuel, on joue toujours l'alarme indépendamment du switch
+        val alarmPlayed = if (alarmOnly || AppConfig.alarmEnabled) playAlarm() else false
         if (!alarmOnly) placeCall(callNumber, forceSpeakerphone = alarmPlayed)
 
         if (alarmOnly) {
@@ -73,33 +75,46 @@ class CallForegroundService : Service() {
     }
 
     private fun playAlarm(): Boolean {
-        try {
+        return try {
             val audioManager = getSystemService(AudioManager::class.java)
             val maxVol = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
             audioManager.setStreamVolume(AudioManager.STREAM_ALARM, maxVol, 0)
 
-            AppConfig.load(this)
-            val alarmUri = if (AppConfig.alarmUri.isNotEmpty()) android.net.Uri.parse(AppConfig.alarmUri)
-                           else RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                               ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            val ringtone = RingtoneManager.getRingtone(this, alarmUri)
-            ringtone.audioAttributes = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_ALARM)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            ringtone.play()
-            currentRingtone = ringtone
-            Log.i(TAG, "✓ Alarme déclenchée (volume max)")
+            val alarmUri = if (AppConfig.alarmUri.isNotEmpty())
+                Uri.parse(AppConfig.alarmUri)
+            else
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
 
-            // Arrête automatiquement après 10 secondes
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                if (ringtone.isPlaying) ringtone.stop()
-            }, 10_000L)
-            return true
+            stopAlarm()
+            mediaPlayer = MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .setLegacyStreamType(AudioManager.STREAM_ALARM)
+                        .build()
+                )
+                setDataSource(applicationContext, alarmUri)
+                prepare()
+                start()
+            }
+            Log.i(TAG, "✓ Alarme déclenchée via MediaPlayer (volume max)")
+
+            Handler(Looper.getMainLooper()).postDelayed({ stopAlarm() }, 10_000L)
+            true
         } catch (e: Exception) {
             Log.e(TAG, "✗ Impossible de jouer l'alarme", e)
+            false
         }
-        return false
+    }
+
+    private fun stopAlarm() {
+        try {
+            mediaPlayer?.stop()
+            mediaPlayer?.release()
+        } catch (_: Exception) {}
+        mediaPlayer = null
     }
 
     private fun placeCall(number: String, forceSpeakerphone: Boolean = false) {
@@ -146,7 +161,7 @@ class CallForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_lock_silent_mode, "Arrêter alarme", stopPi)
+            .addAction(android.R.drawable.ic_media_pause, "Arrêter alarme", stopPi)
             .build()
     }
 

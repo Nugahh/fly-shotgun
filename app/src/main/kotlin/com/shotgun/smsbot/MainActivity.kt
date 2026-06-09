@@ -13,6 +13,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.google.android.material.chip.Chip
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.shotgun.smsbot.config.AppConfig
@@ -70,6 +72,7 @@ class MainActivity : AppCompatActivity() {
         setupScheduleButtons()
         setupGeminiKeyEdit()
         setupPickAlarmSoundButton()
+        setupTestLlmButton()
         setupTestAlarmButton()
         permissionLauncher.launch(requiredPermissions)
         checkBatteryOptimization()
@@ -269,6 +272,39 @@ class MainActivity : AppCompatActivity() {
             alarm        = binding.switchAlarm.isChecked,
             alarmUriStr  = selectedAlarmUri
         )
+    }
+
+    private fun setupTestLlmButton() {
+        binding.btnTestLlm.setOnClickListener {
+            val input = android.widget.EditText(this).apply {
+                hint = "Colle ici le SMS à analyser"
+                minLines = 4
+                maxLines = 8
+                gravity = android.view.Gravity.TOP or android.view.Gravity.START
+                setPadding(48, 24, 48, 24)
+            }
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("SMS à tester")
+                .setView(input)
+                .setPositiveButton("Envoyer au LLM") { _, _ ->
+                    val sms = input.text.toString().trim()
+                    if (sms.isEmpty()) return@setPositiveButton
+                    binding.btnTestLlm.isEnabled = false
+                    binding.btnTestLlm.text = "Appel Gemini en cours…"
+                    lifecycleScope.launch {
+                        val result = com.shotgun.smsbot.util.SmsLlmInterpreter.extractDate(this@MainActivity, sms)
+                        binding.btnTestLlm.isEnabled = true
+                        binding.btnTestLlm.text = "Tester le LLM"
+                        androidx.appcompat.app.AlertDialog.Builder(this@MainActivity)
+                            .setTitle("Résultat LLM")
+                            .setMessage("SMS :\n\"$sms\"\n\nRésultat : ${result ?: "NONE — pas de dispo détectée"}")
+                            .setPositiveButton("OK", null)
+                            .show()
+                    }
+                }
+                .setNegativeButton("Annuler", null)
+                .show()
+        }
     }
 
     private fun setupTestAlarmButton() {
