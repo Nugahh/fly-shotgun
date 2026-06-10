@@ -15,6 +15,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
 import android.telecom.TelecomManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -28,9 +30,14 @@ class CallForegroundService : Service() {
         private const val CHANNEL_ID      = "shotgun_call_channel"
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP_ALARM       = "com.shotgun.smsbot.STOP_ALARM"
+        private const val ALARM_DURATION_MS = 15_000L
     }
 
     private var mediaPlayer: MediaPlayer? = null
+    private var vibrator: Vibrator? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var pendingCallNumber: String? = null
+    private var pendingCallRunnable: Runnable? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -41,8 +48,17 @@ class CallForegroundService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP_ALARM) {
+            pendingCallRunnable?.let { handler.removeCallbacks(it) }
+            pendingCallRunnable = null
             stopAlarm()
-            Log.i(TAG, "Alarme arrêtée manuellement")
+            val number = pendingCallNumber
+            pendingCallNumber = null
+            if (number != null) {
+                Log.i(TAG, "Alarme arrêtée manuellement — appel immédiat vers $number")
+                placeCall(number, forceSpeakerphone = true)
+            } else {
+                Log.i(TAG, "Alarme arrêtée manuellement")
+            }
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf(startId)
             return START_NOT_STICKY
@@ -50,26 +66,44 @@ class CallForegroundService : Service() {
 
         val callNumber  = intent?.getStringExtra("call_number")  ?: run { stopSelf(); return START_NOT_STICKY }
         val matchedDate = intent.getStringExtra("matched_date") ?: ""
+        val alarmOnly   = intent.getBooleanExtra("alarm_only", false)
+
+        AppConfig.load(this)
+        val willPlayAlarm = alarmOnly || AppConfig.alarmEnabled
 
         // Obligatoire dans les 5 secondes sur Android 12+ pour éviter une ANR.
-        startForeground(NOTIFICATION_ID, buildNotification(callNumber, matchedDate))
+        startForeground(NOTIFICATION_ID, buildNotification(callNumber, matchedDate, willPlayAlarm && !alarmOnly))
 
-        val alarmOnly = intent.getBooleanExtra("alarm_only", false)
         Log.i(TAG, if (alarmOnly) "Test alarme" else "Passage d'appel vers $callNumber (date: $matchedDate)")
-        AppConfig.load(this)
-        // Pour le test manuel, on joue toujours l'alarme indépendamment du switch
-        val alarmPlayed = if (alarmOnly || AppConfig.alarmEnabled) playAlarm() else false
-        if (!alarmOnly) placeCall(callNumber, forceSpeakerphone = alarmPlayed)
 
-        if (alarmOnly) {
-            // Garde le service vivant le temps de l'alarme (10s) pour que la notification reste visible
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf(startId)
-            }, 11_000L)
-        } else {
+        if (!willPlayAlarm) {
+            if (!alarmOnly) placeCall(callNumber, forceSpeakerphone = false)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf(startId)
+            return START_NOT_STICKY
+        }
+
+        // Joue l'alarme + vibration pendant 15s avant l'appel, pour que l'utilisateur
+        // soit alerté avant que l'audio de l'appel ne coupe le son de l'alarme (Samsung).
+        playAlarm()
+
+        if (alarmOnly) {
+            handler.postDelayed({
+                stopAlarm()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }, ALARM_DURATION_MS)
+        } else {
+            pendingCallNumber = callNumber
+            pendingCallRunnable = Runnable {
+                stopAlarm()
+                pendingCallNumber = null
+                pendingCallRunnable = null
+                placeCall(callNumber, forceSpeakerphone = true)
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }
+            handler.postDelayed(pendingCallRunnable!!, ALARM_DURATION_MS)
         }
         return START_NOT_STICKY
     }
@@ -96,12 +130,16 @@ class CallForegroundService : Service() {
                         .build()
                 )
                 setDataSource(applicationContext, alarmUri)
+                isLooping = true
                 prepare()
                 start()
             }
             Log.i(TAG, "✓ Alarme déclenchée via MediaPlayer (volume max)")
 
-            Handler(Looper.getMainLooper()).postDelayed({ stopAlarm() }, 10_000L)
+            vibrator = getSystemService(Vibrator::class.java)?.also { v ->
+                val pattern = longArrayOf(0, 1000, 500)
+                v.vibrate(VibrationEffect.createWaveform(pattern, 0))
+            }
             true
         } catch (e: Exception) {
             Log.e(TAG, "✗ Impossible de jouer l'alarme", e)
@@ -115,6 +153,10 @@ class CallForegroundService : Service() {
             mediaPlayer?.release()
         } catch (_: Exception) {}
         mediaPlayer = null
+        try {
+            vibrator?.cancel()
+        } catch (_: Exception) {}
+        vibrator = null
     }
 
     private fun placeCall(number: String, forceSpeakerphone: Boolean = false) {
@@ -146,7 +188,7 @@ class CallForegroundService : Service() {
         }
     }
 
-    private fun buildNotification(number: String, date: String): Notification {
+    private fun buildNotification(number: String, date: String, willCallOnStop: Boolean): Notification {
         val text = if (date.isNotEmpty()) "Vol le $date → appel vers $number"
                    else "Appel automatique vers $number"
         val stopPi = PendingIntent.getService(
@@ -154,6 +196,7 @@ class CallForegroundService : Service() {
             Intent(this, CallForegroundService::class.java).apply { action = ACTION_STOP_ALARM },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val actionLabel = if (willCallOnStop) "Arrêter l'alarme et appeler" else "Arrêter l'alarme"
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("Shotgun : appel en cours")
             .setContentText(text)
@@ -161,7 +204,7 @@ class CallForegroundService : Service() {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setOngoing(true)
-            .addAction(android.R.drawable.ic_media_pause, "Arrêter alarme", stopPi)
+            .addAction(android.R.drawable.ic_media_pause, actionLabel, stopPi)
             .build()
     }
 
